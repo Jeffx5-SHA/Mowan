@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>魔丸能量盲盒 · 积极心理暗示</title>
 <!-- GoatCounter 跟踪代码 -->
-<script data-goatcounter="https://jeffx5.goatcounter.com/count"
-        async src="https://cdn.jsdelivr.net/npm/goatcounter@latest/count.js"></script>
+  <script data-goatcounter="https://jeffx5.goatcounter.com/count"
+          async src="//gc.zgo.at/count.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 :root{
@@ -432,7 +432,26 @@ button.share-btn{
     <span class="clickable" id="openFav">❤ 收藏 <b id="statFav">0</b> 条</span>
   </div>
 </div>
-
+<!-- 支付确认弹窗 -->
+<div class="modal" id="payModal" style="z-index:60;">
+  <div class="modal-card" style="text-align:center;">
+    <div class="modal-head">
+      <h3>今日免费次数已用完</h3>
+      <button class="icon-btn" id="closePayModal">✕</button>
+    </div>
+    <p style="margin:16px 0;color:rgba(255,255,255,.8);line-height:1.7;">
+  继续抽取需支付 <b style="color:#ffd66b;">0.99 元</b><br>
+  <span style="font-size:13px;color:rgba(255,255,255,.5);">
+    点击“去支付”后，会新开一个页面完成付款<br>
+    支付完成后，关闭新页面，回到这里点“我已完成支付”
+  </span>
+</p>
+    <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+      <button id="goPayBtn" style="padding:12px 28px;">去支付</button>
+      <button id="paidDoneBtn" class="ghost" style="padding:12px 28px;">我已完成支付</button>
+    </div>
+  </div>
+</div>
 <!-- 收藏弹窗 -->
 <div class="modal" id="modal">
   <div class="modal-card">
@@ -474,6 +493,9 @@ button.share-btn{
 // 你的网页地址（用于生成分享卡上的二维码）
 // 请替换为你实际部署后的网址，例如：https://yourdomain.com/mowan
 const SITE_URL = 'https://jeffx5-sha.github.io/Mowan/';
+/* ========== 付费抽取配置 ========== */
+const PAYMENT_URL = 'https://jsjform.com/f/AqEieB';
+const FREE_LIMIT_PER_DAY = 1; // 每天免费次数
 
 /* =========================================================
    一、语料库
@@ -2806,7 +2828,27 @@ const CORES = [
   '挫折教会你变通，却不该教会你否定自我存在的价值。'
 
 ];
+/* 检查今天抽签状态 */
+function checkDailyStatus() {
+  const today = new Date().toDateString();
+  const lastDate = localStorage.getItem('mowan_lastDrawDate') || '';
+  let count = parseInt(localStorage.getItem('mowan_todayCount') || '0', 10);
 
+  if (lastDate !== today) {
+    localStorage.setItem('mowan_lastDrawDate', today);
+    localStorage.setItem('mowan_todayCount', '0');
+    return { count: 0, isFree: true };
+  }
+  return { count, isFree: count < FREE_LIMIT_PER_DAY };
+}
+
+/* 更新今日计数 */
+function increaseTodayCount() {
+  const today = new Date().toDateString();
+  const count = parseInt(localStorage.getItem('mowan_todayCount') || '0', 10);
+  localStorage.setItem('mowan_lastDrawDate', today);
+  localStorage.setItem('mowan_todayCount', String(count + 1));
+}
 /* 生成完整标语池 */
 const POOL = [];
 PREFIXES.forEach(p => CORES.forEach(c => POOL.push(p + c)));
@@ -2956,7 +2998,19 @@ function showToast(msg, duration = 1800){
 /* =========================================================
    六、抽盲盒主流程
    ========================================================= */
-function draw(){
+function draw() {
+  if (drawing) return;
+
+  const status = checkDailyStatus();
+
+  if (status.isFree) {
+    executeDraw();
+  } else {
+    showPayModal();
+  }
+}
+
+function executeDraw() {
   if (drawing) return;
   drawing = true;
   drawBtn.disabled = true;
@@ -2964,14 +3018,13 @@ function draw(){
   shareBtn.disabled = true;
   drawBtn.textContent = '开启中…';
 
-  initAudio(); // 用户手势中激活音频
+  initAudio();
 
   cardEl.classList.remove('show');
   giftEl.classList.remove('hide');
 
   setTimeout(startShake, 380);
 }
-
 function startShake(){
   giftEl.classList.add('shake');
   playOpenSound();
@@ -2995,9 +3048,28 @@ function startShake(){
       shareBtn.disabled = false;
       drawBtn.textContent = '再抽一次';
 
-      drawCount++;
-      syncFavBtn();
-      updateStats();
+drawCount++;
+increaseTodayCount();   // 记录今天抽了一次
+syncFavBtn();
+updateStats();
+
+// GoatCounter 事件（可选）
+if (window.goatcounter && window.goatcounter.count) {
+  window.goatcounter.count({
+    path: 'draw-success',
+    title: '抽签成功',
+    event: true
+  });
+}
+
+// GoatCounter 事件（可选）
+if (window.goatcounter && window.goatcounter.count) {
+  window.goatcounter.count({
+    path: 'draw-success',
+    title: '抽签成功',
+    event: true
+  });
+}
     }, 240);
 
   }, 960);
@@ -3259,6 +3331,34 @@ shareModalEl.addEventListener('click', e => {
   if (e.target === shareModalEl) shareModalEl.classList.remove('show');
 });
 
+/* ========== 支付弹窗控制 ========== */
+const payModal = document.getElementById('payModal');
+const goPayBtn = document.getElementById('goPayBtn');
+const paidDoneBtn = document.getElementById('paidDoneBtn');
+const closePayModal = document.getElementById('closePayModal');
+
+function showPayModal() {
+  payModal.classList.add('show');
+}
+function hidePayModal() {
+  payModal.classList.remove('show');
+}
+
+goPayBtn.addEventListener('click', () => {
+  localStorage.setItem('mowan_pendingPayment', 'true');
+  window.location.href = PAYMENT_URL;
+});
+
+paidDoneBtn.addEventListener('click', () => {
+  hidePayModal();
+  localStorage.removeItem('mowan_pendingPayment');
+  executeDraw();  // 用户确认已支付，执行抽签
+});
+
+closePayModal.addEventListener('click', hidePayModal);
+payModal.addEventListener('click', (e) => {
+  if (e.target === payModal) hidePayModal();
+});
 /* =========================================================
    十、收藏功能
    ========================================================= */
@@ -3351,6 +3451,23 @@ giftEl.addEventListener('click', draw);
 
 /* 初始化 */
 updateStats();
+// 当用户从支付页切回本页时，若有待处理支付，自动弹出确认窗
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' &&
+      localStorage.getItem('mowan_pendingPayment') === 'true' &&
+      !payModal.classList.contains('show')) {
+    showPayModal();
+  }
+});
+// 页面加载时检查是否有未完成的支付
+window.addEventListener('load', () => {
+  if (localStorage.getItem('mowan_pendingPayment') === 'true') {
+    localStorage.removeItem('mowan_pendingPayment');
+    setTimeout(() => {
+      showToast('如果你已完成支付，请点击“开启盲盒”继续抽取');
+    }, 800);
+  }
+});
 </script>
 </body>
 </html>

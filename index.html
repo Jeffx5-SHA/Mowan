@@ -3351,8 +3351,25 @@ goPayBtn.addEventListener('click', () => {
 
 paidDoneBtn.addEventListener('click', () => {
   hidePayModal();
-  localStorage.removeItem('mowan_pendingPayment');
-  executeDraw();  // 用户确认已支付，执行抽签
+  // 模拟系统正在核实订单的假象
+  showToast('正在核实支付订单...', 8000);
+  
+  // 禁用按钮，防止狂点
+  paidDoneBtn.disabled = true;
+  paidDoneBtn.textContent = '核实中...';
+
+  setTimeout(() => {
+    // 模拟核实完毕
+    localStorage.removeItem('mowan_pendingPayment');
+    executeDraw();
+    
+    // 恢复按钮状态
+    paidDoneBtn.disabled = false;
+    paidDoneBtn.textContent = '我已完成支付';
+    
+    // 在这里可以加一个提示，给一点心理压力
+    showToast('已为您开启能量盲盒');
+  }, 8000); // 3秒的等待，既像是网络请求，又能劝退部分白嫖党
 });
 
 closePayModal.addEventListener('click', hidePayModal);
